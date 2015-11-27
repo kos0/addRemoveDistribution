@@ -14,12 +14,13 @@ sub parse {
     chomp;
     if(/^deb(-src)? (.*).ubuntu.com\/ubuntu (.*?) (.*)/) {
       if($3 ne $distribution) {
+        $3 =~ s/-.*//;
         $4 =~ s/ #.*$//;
         if($1 eq "") {
-          push(@entries, "$2,$4");
+          push(@entries, "$2,$3,$4");
         }
         else {
-          push(@srcEntries, "$2,$4");
+          push(@srcEntries, "$2,$3,$4");
         }
       }
       else {
@@ -48,8 +49,8 @@ sub rewrite {
       }
       foreach(@entries) {
         my @x = split(",");
-        my @y = split(" ", $x[1]);
-        $line = "deb $x[0].ubuntu.com/ubuntu $distribution @y #Added by addRemoveRepository";
+        my @y = split(" ", $x[2]);
+        $line = "deb $x[0].ubuntu.com/ubuntu $x[1]$distribution @y #Added by addRemoveRepository";
         if(!grep(/^$line$/, @added)) {
           print($line . "\n");
           push(@added, $line);
@@ -57,8 +58,8 @@ sub rewrite {
       }
       foreach(@srcEntries) {
         my @x = split(",");
-        my @y = split(" ", $x[1]);
-        $srcLine = "deb $x[0].ubuntu.com/ubuntu $distribution @y #Added by addRemoveRepository";
+        my @y = split(" ", $x[2]);
+        $srcLine = "deb $x[0].ubuntu.com/ubuntu $x[1]$distribution @y #Added by addRemoveRepository";
         if(!grep(/^$srcLine$/, @srcAdded)) {
           print($srcLine . "\n");
           push(@srcAdded, $srcLine);
@@ -84,10 +85,10 @@ if(@ARGV == 2 && $ARGV[0] =~ /^(enable|disable)$/ && $ARGV[1] =~ /^(default|secu
   $releaseCodename = `lsb_release -sc`;
   chomp($releaseCodename);
   if($ARGV[1] eq "default") {
-    $distribution = $releaseCodename
+    $distribution = "";
   }
   else {
-    $distribution = $releaseCodename . "-" . $ARGV[1];
+    $distribution = "-" . $ARGV[1];
   }
 }
 else {
