@@ -11,70 +11,87 @@ sub parse {
   open(my $in, "sources.list") || die("Couldn't open '/etc/apt/sources.list': $!");
 
   while(<$in>) {
-    chomp;
-    if(/^deb(-src)? (.*).ubuntu.com\/ubuntu (.*?) (.*)/) {
-      if($3 ne $distribution) {
-        $3 =~ s/-.*//;
-        $4 =~ s/ #.*$//;
-        if($1 eq "") {
-          push(@entries, "$2,$3,$4");
+    my $pushList = 1; # sets to push the current element to the list to be printed regardless
+    chomp; # removes a trailing newline if present
+    if(/^deb(-src)? +(.*).ubuntu.com\/ubuntu +(.*?) +(.*)( +)?(#.*)?/) {
+      my $src = $1 eq "-src"; # 0 if it's a binary repository, 1 if it's a source repository
+      my $URI = $2;
+      my @split = split("-", $3); # 1 element if it's a "default" distribution, 2 elements if it's not a "default" distribution
+      my $components = $4;
+      $components =~ s/ {2,}//; # removes consecutive spaces if present
+      if(($distribution eq "default" && defined($split[1])) || ($distribution ne "default" && $split[1] ne $distribution)) { # scrapes the data for the entry to be builded
+        if(! $src) { # pushes to the binary entries to be builded
+          push(@entries, "$URI,$split[0],$components");
         }
-        else {
-          push(@srcEntries, "$2,$3,$4");
+        else { # pushes to the source entries to be builded
+          push(@srcEntries, "$URI,$split[0],$components");
         }
       }
       else {
-        push(@discard, $_);
+        $pushList = 0; # sets to push the current element to the list to be discarded in case the distribution has to be disabled
       }
     }
-    push(@list, $_);
+    if($pushList) {
+      push(@list, $_); # pushes the current element to the list to be printed regardless (the trailing newline has been chomp()ed)
+    }
+    else {
+      push(@discard, $_); # pushes the current element to the list to be discarded in case the distribution has to be disabled (the trailing newline has been chomp()ed)
+    }
   }
 
   close($in);
-
-  foreach my $x (@list) {
-    ! grep(/^$x$/, @discard) && push(@diff, $x);
-  }
 }
 
 sub rewrite {
-  if($action eq "enable") {
-    if(@discard > 0) {
+  if($action eq "enable") { # prints the list of entries to be printed regardless and builds and prints the new entries or exits if entries for the distribution have been found
+    if(@discard > 0) { # entries for the distribution have been found; exits
       print("$distribution is enabled already. Aborting.\n");
       exit(1);
     }
-    else {
-      foreach(@diff) {
+    else { # entries for the distribution haven't been found; prints the list of entries to be printed regardless
+      foreach(@list) {
         print($_ . "\n");
       }
-      foreach(@entries) {
+      foreach(@entries) { # builds and prints the new entries for binary repositories
+        my $line;
         my @x = split(",");
         my @y = split(" ", $x[2]);
-        $line = "deb $x[0].ubuntu.com/ubuntu $x[1]$distribution @y #Added by addRemoveRepository";
-        if(!grep(/^$line$/, @added)) {
+        if($distribution ne "default") {
+          $line = "deb $x[0].ubuntu.com/ubuntu $x[1]-$distribution @y";
+        }
+        else {
+          $line = "deb $x[0].ubuntu.com/ubuntu $x[1] @y";
+        }
+        if(! grep(/^$line$/, @diff)) {
           print($line . "\n");
-          push(@added, $line);
+          push(@diff, $line);
         }
       }
-      foreach(@srcEntries) {
+      foreach(@srcEntries) { # builds and prints the new entries for source repositories
+        my $srcLine;
         my @x = split(",");
         my @y = split(" ", $x[2]);
-        $srcLine = "deb $x[0].ubuntu.com/ubuntu $x[1]$distribution @y #Added by addRemoveRepository";
-        if(!grep(/^$srcLine$/, @srcAdded)) {
+        if($distribution ne "default") {
+          $srcLine = "deb-src $x[0].ubuntu.com/ubuntu $x[1]-$distribution @y";
+        }
+        else {
+          $srcLine = "deb-src $x[0].ubuntu.com/ubuntu $x[1] @y";
+        }
+        if(! grep(/^$srcLine$/, @diff)) {
           print($srcLine . "\n");
-          push(@srcAdded, $srcLine);
+          push(@diff, $srcLine);
         }
       }
     }
   }
-  else {
-    if(@discard == 0) {
+  else { # prints the list of entries to be printed regardless discarding the entries to be discarded or exits if entries for the distribution haven't been found
+    if(@discard == 0) { # entries for the distribution haven't been found; exits
       print("$distribution is disabled already. Aborting.\n");
       exit(1);
     }
-    else {
-      foreach(@diff) {
-        print($_ . "\n");
+    else { # entries for the distribution have been found; prints the list of entries to be printed regardless discarding the entries to be discarded
+      foreach my $line (@list) {
+        ! grep(/^$line$/, @discard) && print($line . "\n");
       }
     }
   }
@@ -82,14 +99,7 @@ sub rewrite {
 
 if(@ARGV == 2 && $ARGV[0] =~ /^(enable|disable)$/ && $ARGV[1] =~ /^(default|security|updates|proposed|backports)$/) {
   $action = $ARGV[0];
-  $releaseCodename = `lsb_release -sc`;
-  chomp($releaseCodename);
-  if($ARGV[1] eq "default") {
-    $distribution = "";
-  }
-  else {
-    $distribution = "-" . $ARGV[1];
-  }
+  $distribution = $ARGV[1];
 }
 else {
   printUsage;
