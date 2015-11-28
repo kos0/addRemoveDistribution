@@ -8,7 +8,7 @@ sub printUsage {
 }
 
 sub parse {
-    open(my $in, "sources.list") || die("Couldn't open '/etc/apt/sources.list': $!");
+    open(my $in, "/etc/apt/sources.list") || die("Couldn't open '/etc/apt/sources.list': $!");
     while(<$in>) {
         my $matchDistribution;
         chomp;
@@ -18,7 +18,7 @@ sub parse {
             my @split = split("-", $3);
             my @components = sort(split(" ", $4));
             if(($distribution eq "default" && defined($split[1])) || ($distribution ne "default" && $split[1] ne $distribution)) {
-                (! $debSrc && push(@add, "$URI,$split[0],@components")) || push(@addSrc, "$URI,$split[0],@components");
+                push(@add, "$debSrc,$URI,$split[0],@components");
             }
             else {
                 $matchDistribution = 1;
@@ -29,32 +29,42 @@ sub parse {
     close($in);
 }
 
+sub update {
+    while(1) {
+        print("Would you like to update the cache? Y-y/N-n: \n");
+        my $update = <STDIN>;
+        if($update =~ /^y$/i) {
+            my $ret = system("apt-get update");
+            exit($ret);
+        }
+        elsif($update =~ /^n$/i) {
+            exit(0);
+        }
+        else {
+            print("Please enter Y-y or N-n.\n");
+        }
+    }
+}
+
 sub rewrite {
     if($action eq "enable") {
         if(@matchDistribution == 0) {
-            open(my $out, "| cat") || die("Couldn't open '/etc/apt/sources.list': $!");
+            open(my $out, ">", "/etc/apt/sources.list") || die("Couldn't open '/etc/apt/sources.list': $!");
             foreach(@notMatchDistribution) {
                 print $out ($_ . "\n");
             }
             foreach(@add) {
                 my @x = split(",");
-                my @y = split(" ", $x[2]);
-                my $line = sprintf("deb $x[0].ubuntu.com/ubuntu $x[1]%s @y", $distribution ne "default" && sprintf("-$distribution"));
+                my @y = split(" ", $x[3]);
+                my $line = sprintf("deb%s $x[1].ubuntu.com/ubuntu $x[2]%s @y", $x[0] && sprintf("-src"), $distribution ne "default" && sprintf("-$distribution"));
                 if(! grep(/^$line$/, @added)) {
                     print $out ($line . " #Added by enableDisableDistribution\n");
                     push(@added, $line);
                 }
             }
-            foreach(@addSrc) {
-                my @x = split(",");
-                my @y = split(" ", $x[2]);
-                my $srcLine = sprintf("deb-src $x[0].ubuntu.com/ubuntu $x[1]%s @y", $distribution ne "default" && sprintf("-$distribution"));
-                if(! grep(/^$srcLine$/, @addedSrc)) {
-                    print $out ($srcLine . " #Added by enableDisableDistribution\n");
-                    push(@addedSrc, $srcLine);
-                }
-            }
             close($out);
+            printf("Added %s %s.\n", scalar(@added), @added == 1 ? sprintf("entry") : sprintf("entries"));
+            update;
         }
         else {
             print("$distribution is enabled already. Aborting.\n");
@@ -63,11 +73,13 @@ sub rewrite {
     }
     else {
         if(@matchDistribution > 0) {
-            open(my $out, "| cat") || die("Couldn't open '/etc/apt/sources.list': $!");
+            open(my $out, ">", "/etc/apt/sources.list") || die("Couldn't open '/etc/apt/sources.list': $!");
             foreach my $line (@notMatchDistribution) {
-                ! grep(/^$line$/, @matchDistribution) && print $out ($line . "\n");
+                print $out ($line . "\n");
             }
             close($out);
+            printf("Removed %s %s.\n", scalar(@matchDistribution), @matchDistribution == 1 ? sprintf("entry") : sprintf("entries"));
+            update;
         }
         else {
             print("$distribution is disabled already. Aborting.\n");
@@ -76,7 +88,7 @@ sub rewrite {
     }
 }
 
-if($> == 0) {
+if($> != 0) {
     print("You must be root to run enableDisableDistribution.\n");
     exit(1);
 }
