@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 sub printUsage {
-    print("Usage: enableDisableDistribution \e[4maction\e[0m \e[4mdistribution\e[0m\n\n");
+    print("Usage: enableDisableDistribution.pl \e[4maction\e[0m \e[4mdistribution\e[0m\n\n");
     print("\e[4maction\e[0m must be \e[1menable\e[0m or \e[1mdisable\e[0m\n");
     print("\e[4mdistribution\e[0m must be \e[1mdefault\e[0m, \e[1msecurity\e[0m, \e[1mupdates\e[0m, \e[1mproposed\e[0m or \e[1mbackports\e[0m");
     exit(0);
