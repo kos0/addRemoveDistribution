@@ -17,7 +17,7 @@ sub parse {
         my $debSrc = $1 eq "-src"; # 0 if it's a binary repository, 1 if it's a source repository
         my $URI = $2;
         my @split = split("-", $3); # 1 element if it's a "default" distribution, 2 elements if it's not a "default" distribution
-        my @components = $4;
+        my @components = sort(split(" ", $4));
         if(($distribution eq "default" && defined($split[1])) || ($distribution ne "default" && $split[1] ne $distribution)) { # scrapes the data for the entry to be builded
           if(! $debSrc) { # pushes to the binary entries to be builded
             push(@entries, "$URI,$split[0],@components");
