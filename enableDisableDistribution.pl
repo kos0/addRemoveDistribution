@@ -13,7 +13,7 @@ sub parse {
     while(<$in>) {
       my $pushList = 1; # sets to push the current element to the list to be printed regardless
       chomp; # removes a trailing newline if present
-      if(/^deb(-src)? +(.*).ubuntu.com\/ubuntu +(.*?) +(.*?)( *$| +#.*)/) {
+      if(/^deb(-src)? +(.*).ubuntu.com\/ubuntu\/? +(.*?) +(.*?)( *$| +#.*)/) {
         my $src = $1 eq "-src"; # 0 if it's a binary repository, 1 if it's a source repository
         my $URI = $2;
         my @split = split("-", $3); # 1 element if it's a "default" distribution, 2 elements if it's not a "default" distribution
